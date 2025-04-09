@@ -1,0 +1,1653 @@
+//NT_EFFICIENCY_SET
+//I put all the images treatment macro together so I don't have to look for indiviudal ones. One day, I will put them together.
+var List_Of_Macro= newArray("Help","Merge", "Stich", "Convert", "Gray_Value", "Bioformat", "CropClicker", "Stack3D");
+var Another_one=0;
+var Im_a_loop=0;
+
+//bioformat
+var Folderimage="C:/";
+var FolderResults;
+var SaveStack_or_not;
+var FolderSave;
+var FileName;
+var Extension;
+var Number_Of_Conditions;
+var Current_Serie_Name;
+var FolderSaveImage="C:/Users/NT271833/MARIA_LOPES/Extracted_images/Extracted_images/New_test/";
+var List_Images;
+var Treated_Current_Serie_Name;
+var ExtensionType="lif";
+var SaveImages_or_not=1;
+var Analyze_Or_Not;
+File.setDefaultDir("C:/Users/NT271833/");
+
+//
+
+//
+
+//
+
+//
+
+//
+run("Bio-Formats Macro Extensions");
+
+cleanStart();
+for(Im_a_loop=0; Im_a_loop<2; Im_a_loop++){
+var List_Of_Macro= newArray("Help","Merge", "Stich", "Convert", "Gray_Value", "Bioformat", "CropClicker", "Stack3D");
+Dialog.create("Efficiency macro set");
+	Dialog.addChoice("What tool can help you?", List_Of_Macro);
+	Dialog.addCheckbox("Will you need another tool?", Another_one);
+	Dialog.show();
+	
+	List_Of_Macro=Dialog.getChoice();
+	Another_one=Dialog.getCheckbox();
+	if(List_Of_Macro=="Help"){
+		print("Merge= For merging 2 or 3 channel of images together, for an entire batch. You can choose contrast and color.");
+		print("Stich= For stiching any given number of images together, in desired shape, for an entire batch. You can choose contrast and color.");
+		print("Convert= For converting a batch of images in another format, and/or choosing contrast.");
+		print("Gray value= For analysing a batch of images, getting gray value of each image in a .csv.");
+		print("Bioformat= to export from bioformat files, such as .lif or .zvi for exemple, and save images in single or stack of .tif, and/or get there mean gray values.");
+		print("Cropclicker= To crop an image of given size in each image of a batch. The crop will be were you click in the image.");
+		print("Stack3D= To put batches of images in stacks of wanted size. Made for dealing with Marcel's z stacks, but can be use for everything.");
+	}
+	if(Another_one==1){
+		Im_a_loop=0;
+	} else {
+				Im_a_loop=1;
+	}
+	if(List_Of_Macro=="Merge"){
+		MERGE();
+	}
+	if(List_Of_Macro=="Stich"){
+		STICHING();
+	}
+	if(List_Of_Macro=="Convert"){
+		IMAGE_CONVERTER();
+	}
+	if(List_Of_Macro=="Gray_Value"){
+		GRAY_VALUE_BATCH();
+	}
+	if(List_Of_Macro=="Bioformat"){
+		BIOFORMAT_TREATMENT();
+	}
+	if(List_Of_Macro=="CropClicker"){
+		CropClicker();
+	}
+	if(List_Of_Macro=="Stack3D"){
+		STACK3D();
+	}
+}
+
+
+//BIOFORMAT_TREATMENT_V2
+
+function BIOFORMAT_TREATMENT(){
+
+//this macro is to open, analyse, and save images from bio format, into .TIF
+
+setBatchMode(true);
+
+
+//Main block__________________________________________________________________________________________________________________________________________________________________________
+
+print("Starting");
+cleanStart();
+Graphic_interface();
+print("Work work");
+Open_Everything(Folderimage, ExtensionType, SaveImages_or_not);
+print("Work done!");
+
+
+//Functions___________________________________________________________________________________________________________________________________________________________________________
+
+
+function Graphic_interface(){
+	Dialog.create("Confocal_treatment");														//create a dialog box
+		Dialog.addDirectory("Select the images to analyse:",Folderimage);						//The folder containing your .lif images
+		Dialog.addString("Type of extension?", ExtensionType);
+		Dialog.addCheckbox("Do you want to analyze your data?", Analyze_Or_Not);
+		Dialog.addDirectory("select the folder to save your results", FolderResults);				//the folder containing your results
+		Dialog.addCheckbox("Do you want to save the individual stacks?", SaveStack_or_not);
+		Dialog.addToSameRow();																	//add next line to the same row
+		Dialog.addCheckbox("Do you want to save the individual images?", SaveImages_or_not);
+		Dialog.addDirectory("Select a folder to save images, if you do", FolderSaveImage);		//a folder to save the stack as something
+		Dialog.show();																			//show dialog box
+	
+	Folderimage=Dialog.getString();
+	ExtensionType=Dialog.getString();
+	Analyze_Or_Not=Dialog.getCheckbox();
+	FolderResults=Dialog.getString();
+	SaveStack_or_not=Dialog.getCheckbox();
+	SaveImages_or_not=Dialog.getCheckbox();
+	FolderSaveImage=Dialog.getString();
+}
+
+function Open_Everything(Folderimage, ExtensionType, SaveImages_or_not){ 															//open all the .lif file of a folder
+	list=getFileList(Folderimage);
+	for(i=0; i<list.length; i++){
+		FileName=list[i];
+		print("Opening "+FileName);
+		Extension= split(FileName, ".");
+		if(Extension[1]==ExtensionType){
+			if(SaveImages_or_not==0){
+				run("Bio-Formats Importer", "open=["+Folderimage+FileName+"] autoscale color_mode=Default open_all_series rois_import=[ROI manager] view=Hyperstack stack_order=XYCZT");
+			Ext.setId(Folderimage+"/"+FileName);												//mandatory. "activate" a file for the bio-format importer to work on
+			Analyze_and_Save(SaveStack_or_not, FolderResults, FolderSaveImage, Analyze_Or_Not);
+			}
+			if(SaveImages_or_not==1){
+				run("Bio-Formats Importer", "open=["+Folderimage+FileName+"] autoscale color_mode=Default open_all_series rois_import=[ROI manager] split_channels view=Hyperstack stack_order=XYCZT");		//braket to open even with spaces
+			Ext.setId(Folderimage+"/"+FileName);												//mandatory. "activate" a file for the bio-format importer to work on
+			Analyze_and_Save_Single(Analyze_Or_Not, FolderSaveImage);
+			
+			}
+		}
+		
+	}
+}
+
+function Analyze_and_Save(SaveStack_or_not, FolderResults, FolderSaveImage, Analyze_Or_Not){
+	//Number_Of_Conditions= Ext.getSeriesCount(seriesCount); 											//Gets the number of image series in the active dataset.
+	Ext.getSeriesCount(Number_Of_Conditions);
+	List_Images=getList("image.titles");
+	for(j=0; j<Number_Of_Conditions; j++){															//to scan all series
+		//Ext.setSeries(j);
+			//Current_Serie_Name=Ext.getSeriesName(name);
+			//Ext.getSeriesName(Current_Serie_Name);														//get name of serie to work on
+			Current_Serie_Name=List_Images[j];
+			selectWindow(Current_Serie_Name);
+			//Without_Path_Serie_Name=split(Current_Serie_Name, "[- ]");
+			//Treated_Current_Serie_Name=split(Without_Path_Serie_Name[1], "/");
+			Treated_Current_Serie_Name=split(Current_Serie_Name, "/");
+			print("Analyzing "+Treated_Current_Serie_Name[Treated_Current_Serie_Name.length-1]);
+			if(SaveStack_or_not==1){
+				saveAs("Tiff", FolderSaveImage+Treated_Current_Serie_Name[Treated_Current_Serie_Name.length-1]);
+			}
+			if(Analyze_Or_Not==1){
+				run("Measure Stack...");
+				saveAs("Results", FolderResults+Treated_Current_Serie_Name[1]+".csv");
+				run("Clear Results");
+			}
+			close(Current_Serie_Name);
+	}
+}
+
+function Analyze_and_Save_Single(Analyze_Or_Not, FolderSaveImage){
+	Number_of_Images=nImages;																		//give the number of opened images
+	for(j=0; j<Number_of_Images; j++){
+		Name=getTitle();
+		if(Analyze_Or_Not==1){
+			run("Measure");
+		}
+		selectWindow(Name);
+		Name_Without_Path=split(Name, "/");
+		print("Analyzing "+Name_Without_Path[Name_Without_Path.length-1]);
+		//Name_Without_Extension=split(Name_Without_Path[Name_Without_Path.length-1], "[."+ExtensionType+"]");
+		saveAs("TIFF", FolderSaveImage + Name_Without_Path[Name_Without_Path.length-1]+".tif");
+		//saveAs("Tiff", FolderSaveImage + Name_Without_Extension[0] + Name_Without_Extension[1] + ".tif");
+		close();
+		if(Analyze_Or_Not==1){
+			selectWindow("Results");;
+			saveAs("Results", [FolderResults+Name_Without_Extension[0]+Name_Without_Extension[1]+".csv"]);
+			run("Clear Results");
+		}
+	}			
+}
+}
+
+//run("Measure Stack...");
+//open("S:/543-BRM/543.3-Projets/BIOMIMETIC_PLATFORMS/THIBIEROZ_Nathan/2023_Thesis/EXPERIMENTAL/CONFOCAL/20240711_LBL08_TEST/RAW/20240711_Nathan_LBL008.lif");
+//Ext.openImagePlus("S:/543-BRM/543.3-Projets/BIOMIMETIC_PLATFORMS/THIBIEROZ_Nathan/2023_Thesis/EXPERIMENTAL/CONFOCAL/20240711_LBL08_TEST/RAW/20240711_Nathan_LBL008.lif");
+//run("Bio-Formats Importer", "open=C:/Users/NT271833/CONFOCAL/RAW/20240711_Nathan_LBL008.lif autoscale color_mode=Default open_all_series rois_import=[ROI manager] view=Hyperstack stack_order=XYCZT");
+//run("Bio-Formats Importer", "open=[C:/Users/NT271833/IMAGE_ANALYSIS_LOCAL/MARIA_LOPES/Images_IKVAV condition/exp 1/HA IKVAV-143051_0041 2.zvi] autoscale color_mode=Default open_all_series rois_import=[ROI manager] split_channels view=Hyperstack stack_order=XYCZT");
+//Ext.getSeriesCount(seriesCount); 	//Gets the number of image series in the active dataset.
+//Ext.setSeries(seriesNum)			//Sets the current series within the active dataset.
+//Ext.getSeries(seriesNum)			//Gets the current series within the active dataset.
+//Ext.getUsedFileCount(count)			//Gets the number of files that are part of this dataset.
+//Ext.getUsedFile(i, used)			//Gets the i'th filename part of this dataset.
+//Ext.getCurrentFile(file)			//Gets the base filename used to initialize this dataset.
+//Ext.openImage(title, no)			//Opens the no'th plane in a new window named 'title'.
+//Ext.close()							//Closes the active dataset.
+
+
+//STACK3D_V1
+//Stack batches of images in stack of preset size. Made for easy manipulation of marcel stacks.
+//initialisation-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+function STACK3D(){
+//automatic parameters															use for preset parameter for faster batching. Modifify parameters in function.
+	setBatchMode(true);
+	NombreChannel="2";														
+	Blue="390";
+	Orange="542";
+	Green="Green";
+	Supplement="";
+	Colorname = "";
+	PNG=0;
+	BMP=0;
+	Tiff=1;
+	JPEG=0;
+	YesNoScale=0;
+	ScaleWidth=100;
+	Firstcolor="c1";
+	Secondcolor="c3";
+	Thirdcolor="c2";
+	AutoContra=1;
+	MinContrast=500;
+	MaxContrast=40000;
+	saturation=0.35;
+	CompleteControl=0;
+	NbImage=0;
+	
+	AutoContra1=1;
+	MinContrast1=500;
+	MaxContrast1=40000;
+	saturation1=0.35;
+	
+	AutoContra2=1;
+	MinContrast2=500;
+	MaxContrast2=40000;
+	saturation2=0.35;
+	
+	AutoContra3=1;
+	MinContrast3=500;
+	MaxContrast3=40000;
+	saturation3=0.35;
+	
+	dirPNG="";
+	dirBMP="";
+	dirTiff="";
+	dirJPEG="";
+	Folderimage="";
+	separator="wv";
+	
+	NombreStack=25;
+	
+//manual parameters																use for manual parameters
+	//NombreChannel=getNumber("Number of channel? 2 or 3?", 3);
+	//Firstcolor=getString("What is the first color? c1 for red, c3 for blue, c2 for green, c4 for white, c5 for cyan, c6 for magenta, c7 for yellow", "c1");
+	//Secondcolor=getString("What is the second color? c1 for red, c3 for blue, c2 for green, c4 for white, c5 for cyan, c6 for magenta, c7 for yellow", "c3");
+	//if(NombreChannel==3){
+		//Thirdcolor=getString("What is the third color? c1 for red, c3 for blue, c2 for green, c4 for white, c5 for cyan, c6 for magenta, c7 for yellow", "c2");
+		//Green=getString("What is "+ Thirdcolor +"? Red, Blue, Green, Brightfield, Cyan, Magenta, Yellow or something else?", "Green");
+	//}
+	//Orange=getString("What is "+ Firstcolor +"? Red, Blue, Green, Brightfield, Cyan, Magenta, Yellow or something else?", "Orange");
+	//Blue=getString("What is "+ Secondcolor +"? Red, Blue, Green, Brightfield, Cyan, Magenta, Yellow or something else?", "Blue");
+	//Supplement=getString("Do you want to add something in the end?", "");
+	//Tiff=getBoolean("Save in Tiff?");
+	//PNG=getBoolean("Save in PNG?");
+	//BMP=getBoolean("Save in BMP?");
+	//JPEG=getBoolean("Save in JPEG?");
+//with a dialog box
+	
+//first box------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------	
+cleanStart();
+
+	NombreChannel=getNumber("Number of channel? 2 or 3?", NombreChannel);				//first we ask number of channel, for it will influence the boxes
+	
+//second box------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------	
+	
+	Dialog.create("Choose your channels");									//next the channel (and therefore coloration) used
+		Dialog.addMessage("c1 for red, c3 for blue, c2 for green, c4 for white, c5 for cyan, c6 for magenta, c7 for yellow.");
+		Dialog.addString("What is the first color?", Firstcolor);
+		Dialog.addString("What is the second color?", Secondcolor);
+		if(NombreChannel==3){
+			Dialog.addString("What is the third color?", Thirdcolor);
+		}
+		Dialog.addCheckbox("Do you wish to control contrast parameter for each channel?", CompleteControl);
+	Dialog.show();															//we show the box
+	Firstcolor=Dialog.getString();											//we get the result into the variables
+	Secondcolor=Dialog.getString();
+	if(NombreChannel==3){
+			Thirdcolor=Dialog.getString();
+		}
+	CompleteControl=Dialog.getCheckbox();
+	
+//third box------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+	
+	Dialog.create("What is the name of each channel, first word after wv? Do you want a supplement? in which way do you want to save them?");			//rinse and repeat, with the name used in the image for colors
+		Dialog.addMessage("--Merging parameters---");
+		Dialog.addNumber("How many stacks per channel?", NombreStack);
+		Dialog.addString("What is the separator?", separator);
+		Dialog.addMessage("Put the word after the separator");
+		Dialog.addString("What is "+ Firstcolor +"?", Orange);
+			if(CompleteControl==1){
+				Dialog.addCheckbox("Auto contrast?", AutoContra1);
+				Dialog.addNumber("If autocontrast, what saturation?", saturation1);
+				Dialog.addNumber("If no autocontrast, what min value?", MinContrast1);
+				Dialog.addNumber("If no autocontrast, what max value?", MaxContrast1);
+			}
+		Dialog.addString("What is "+ Secondcolor +"?", Blue);
+			if(CompleteControl==1){
+				Dialog.addCheckbox("Auto contrast?", AutoContra2);
+				Dialog.addNumber("If autocontrast, what saturation?", saturation2);
+				Dialog.addNumber("If no autocontrast, what min value?", MinContrast2);
+				Dialog.addNumber("If no autocontrast, what max value?", MaxContrast2);
+			}
+		if(NombreChannel==3){
+			Dialog.addString("What is "+ Thirdcolor +"?", Green);
+			if(CompleteControl==1){
+				Dialog.addCheckbox("Auto contrast?", AutoContra3);
+				Dialog.addNumber("If autocontrast, what saturation?", saturation3);
+				Dialog.addNumber("If no autocontrast, what min value?", MinContrast3);
+				Dialog.addNumber("If no autocontrast, what max value?", MaxContrast3);
+			}
+		}
+		Dialog.addMessage("--Supplements to merged image---");
+		Dialog.addString("Do you want to add something in the end?", Supplement);
+		Dialog.addCheckbox("Scale bar?", YesNoScale);
+		Dialog.addString("What size of scale bar? (µm)", ScaleWidth);
+		if(CompleteControl==0){
+			Dialog.addCheckbox("Auto contrast?", AutoContra);
+			Dialog.addNumber("If autocontrast, what saturation?", saturation);
+			Dialog.addNumber("If no autocontrast, what min value?", MinContrast);
+			Dialog.addNumber("If no autocontrast, what max value?", MaxContrast);
+		}
+		Dialog.addMessage("--Ways of saving---");
+		Dialog.addCheckbox("Save in Tiff?", Tiff);
+		Dialog.addCheckbox("Save in JPEG?", JPEG);
+		Dialog.addCheckbox("Save in PNG? (slower for some reason)", PNG);
+		Dialog.addCheckbox("Save in BMP?", BMP);
+	Dialog.show();
+	NombreStack=Dialog.getNumber();
+	separator=Dialog.getString();
+	Orange= Dialog.getString();
+	if(CompleteControl==1){
+		AutoContra1=Dialog.getCheckbox();
+		saturation1=Dialog.getNumber();
+		MinContrast1=Dialog.getNumber();
+		MaxContrast1=Dialog.getNumber();
+	}
+	Blue= Dialog.getString();
+	if(CompleteControl==1){
+		AutoContra2=Dialog.getCheckbox();
+		saturation2=Dialog.getNumber();
+		MinContrast2=Dialog.getNumber();
+		MaxContrast2=Dialog.getNumber();
+	}
+	if(NombreChannel==3){
+			Green=Dialog.getString();
+			if(CompleteControl==1){
+			AutoContra3=Dialog.getCheckbox();
+			saturation3=Dialog.getNumber();
+			MinContrast3=Dialog.getNumber();
+			MaxContrast3=Dialog.getNumber();
+			}
+	}
+	Supplement=Dialog.getString();
+	YesNoScale=Dialog.getCheckbox();
+	ScaleWidth=Dialog.getString();
+	if(CompleteControl==0){
+		AutoContra=Dialog.getCheckbox();
+		saturation=Dialog.getNumber();
+		MinContrast=Dialog.getNumber();
+		MaxContrast=Dialog.getNumber();
+	}
+	Tiff=Dialog.getCheckbox();
+	JPEG=Dialog.getCheckbox();
+	PNG=Dialog.getCheckbox();
+	BMP=Dialog.getCheckbox();
+	
+	if(PNG==0){
+		if(BMP==0){
+			if(Tiff==0){
+				if(JPEG==0){
+					exit("Select at least one way to save images");								//prevent errors
+				}
+			}
+		}
+	}
+//Choose folder to analyse and save												
+	
+	Dialog.create("Neuroblastoma morphology analysis");
+		Dialog.addDirectory("Select the images to analyse:",Folderimage);						//to choose a directory directly
+	if(PNG==1){
+		Dialog.addDirectory("Select a folder to save in PNG:", dirPNG);
+	}
+	if(BMP==1){
+		Dialog.addDirectory("Select a folder to save in BMP:", dirBMP);
+	}
+	if(Tiff==1){
+		Dialog.addDirectory("Select a folder to save in TIFF:", dirTiff);
+	}
+	if(JPEG==1){
+		Dialog.addDirectory("Select a folder to save in JPEG:", dirJPEG);
+	}
+	Dialog.show();
+	
+	Folderimage=Dialog.getString();
+	if(PNG==1){
+		dirPNG=Dialog.getString();
+	}
+	if(BMP==1){
+		dirBMP=Dialog.getString();
+	}
+	if(Tiff==1){
+		dirTiff=Dialog.getString();
+	}
+	if(JPEG==1){
+		dirJPEG=Dialog.getString();
+	}
+	dir=Folderimage;													
+	list=getFileList(Folderimage);												//Get the files of a folder
+
+
+//Main program---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+run("Close All");																//allow a smooth start with no interferences
+
+//part for opening everything
+TrueNombreStack=NombreChannel*NombreStack;
+for(i=0; i<list.length-1; i=i+NombreChannel*NombreStack){									//i start at zero, and while i<list.length, i increase by one each iteration
+	print("\\Clear");															//clean log
+	//for(k=0; k<NombreChannel;k++){
+		for(s=0; s<TrueNombreStack;s++){
+			open(dir+"\\"+list[i+s]);												//Open n file of dir: open the batch composed of k image
+
+
+			Name=getTitle();														//take the title of the image and put it in a variable
+			//Zvalue=split(Name, "z");
+			//ZvalueNoTif=split(Zvalue[1],".");
+			//if(lengthOf(ZvalueNoTif[0])==1){
+			//ZvalueNoTif[0]="0"+ZvalueNoTif[0];
+			//}
+			//Name=Zvalue[0]+"z"+ZvalueNoTif[0]+".tif";
+			print(Name);															//put the name stored in variable in the log
+			//rename(Name);
+			//File.makeDirectory(dirTiff+File.separator+"Renamed");
+			//saveAs("Tif", dirTiff+"\\"+Name);
+		}
+	//}
+			run("Images to Stack", "name="+Firstcolor+" title=["+Orange+"] use");
+				if(CompleteControl==0){
+					if(AutoContra==1){
+					run("Enhance Contrast", "saturated="+saturation);								//for automatic
+					}
+					if(AutoContra==0){
+						setMinAndMax(MinContrast, MaxContrast);												//for manual
+					}
+				}	
+				if(CompleteControl==1){
+							if(AutoContra2==1){
+								run("Enhance Contrast", "saturated="+saturation1);								//for automatic
+							}
+							if(AutoContra2==0){
+								setMinAndMax(MinContrast1, MaxContrast1);												//for manual
+							}
+						}
+			run("Images to Stack", "name="+Secondcolor+" title=["+Blue+"] use");
+				if(CompleteControl==0){
+					if(AutoContra==1){
+					run("Enhance Contrast", "saturated="+saturation);								//for automatic
+					}
+					if(AutoContra==0){
+						setMinAndMax(MinContrast, MaxContrast);												//for manual
+					}
+				}
+				if(CompleteControl==1){
+							if(AutoContra1==1){
+								run("Enhance Contrast", "saturated="+saturation2);								//for automatic
+							}
+							if(AutoContra1==0){
+								setMinAndMax(MinContrast2, MaxContrast2);												//for manual
+							}
+						}	
+			if(NombreChannel==3){
+			run("Images to Stack", "name="+Thirdcolor+" title=["+Green+"] use");
+				if(CompleteControl==0){
+					if(AutoContra==1){
+					run("Enhance Contrast", "saturated="+saturation);								//for automatic
+					}
+					if(AutoContra==0){
+						setMinAndMax(MinContrast, MaxContrast);												//for manual
+					}
+				}
+				if(CompleteControl==1){
+							if(AutoContra1==1){
+								run("Enhance Contrast", "saturated="+saturation2);								//for automatic
+							}
+							if(AutoContra1==0){
+								setMinAndMax(MinContrast3, MaxContrast3);												//for manual
+							}
+						}
+			}
+			if(NombreChannel==2){
+			run("Merge Channels...", Firstcolor + "=[" + Firstcolor + "]" + Secondcolor + "=[" + Secondcolor + "] create");
+			}
+			if(NombreChannel==3){
+			run("Merge Channels...", Firstcolor +"=[" + Firstcolor + "]" + Secondcolor + "=[" + Secondcolor + "]" + Thirdcolor + "=[" + Thirdcolor + "] create");
+			}
+			//run("Brightness/Contrast...");
+			
+			
+	Names=getInfo("log");														//get the printed names from log
+	Namesplited=split(Names,"\n");												//separate each line
+	Cutend = split(Namesplited[1], ".");
+	Cutstart = split(Cutend[0], "["+separator+"]");
+	NameSaved=Cutstart[0]+")";
+	saveAs("Tiff", dirTiff+"\\"+NameSaved+".Tiff");
+run("Close All");
+	print("\\Clear");
+	NbImage=NbImage+1;
+	}
+showMessage("Program completed, "+NbImage+" merging! Have a nice day!");
+}
+exit;																			//finish the program
+//______________________________________________________________________________________________________________________________________________________________________________
+
+//get the name of everything and sort them
+	Names=getInfo("log");														//get the printed names from log
+	Namesplited=split(Names,"\n");												//separate each line
+		for (j=0; j<NombreChannel;j++){
+			Titletotest = Namesplited[j];
+			Cutend = split(Titletotest, ".");
+//different way of doing this, with different pro/cons	
+			//Cutstart = split(Cutend[0], " )");
+			//Colorname = Cutstart[7];
+			//print(Cutstart[7]);
+			Cutstart = split(Cutend[0], "(wv)");
+			Removingparanthesis = split(Cutstart[1], ")");
+			Removingspace = split(Removingparanthesis[0]," ");
+			Colorname= Removingspace[0];
+				if(Colorname == Blue) {												//check the color and deal accordingly
+					Bluename=Namesplited[j];
+					selectWindow(Bluename);
+					if(CompleteControl==1){
+						if(AutoContra2==1){
+							run("Enhance Contrast", "saturated="+saturation2);								//for automatic
+						}
+						if(AutoContra2==0){
+							setMinAndMax(MinContrast2, MaxContrast2);												//for manual
+						}
+					}
+				}
+				if(Colorname == Orange) {
+					Orangename=Namesplited[j];
+					selectWindow(Orangename);
+					if(CompleteControl==1){
+						if(AutoContra1==1){
+							run("Enhance Contrast", "saturated="+saturation1);								//for automatic
+						}
+						if(AutoContra1==0){
+							setMinAndMax(MinContrast1, MaxContrast1);												//for manual
+						}
+					}
+				}
+				if(Colorname == Green) {
+					Greenname=Namesplited[j];
+					selectWindow(Greenname);
+					if(CompleteControl==1){
+						if(AutoContr3a==1){
+							run("Enhance Contrast", "saturated="+saturation3);								//for automatic
+						}
+						if(AutoContra3==0){
+							setMinAndMax(MinContrast3, MaxContrast3);												//for manual
+						}
+					}
+				}
+			//if (Titletotest.contains(Blue){
+			//	Bluename=Namesplited[j];
+			//}
+			//if (Titletotest.contains(Orange){
+			//	Orangename=Namesplited[j];
+			//}
+			//if (Titletotest.contains(Green){
+			//	Greename=Namesplited[j];
+			//}
+		}
+	Name1=Namesplited[0];
+	Namecut= split(Name1, "wv");												//cut the name before the wv
+	Truename= Namecut[0] + ")" + Supplement;	
+//merging, renaming, scale bar, and saving
+	if (NombreChannel==3) {
+		run("Merge Channels...", Firstcolor +"=[" + Orangename + "]" + Secondcolor + "=[" + Bluename + "]" + Thirdcolor + "=[" + Greenname + "] create");		//Each channel is given one of the line ==> one of the picture. 
+	}
+	if (NombreChannel==2) {
+		run("Merge Channels...", Firstcolor + "=[" + Orangename + "]" + Secondcolor + "=[" + Bluename + "] create");
+	}
+	rename(Truename);															//give the "true" name, constitued from fragment of the images (only the beginning)
+	if(YesNoScale==1){
+		run("Scale Bar...", "width=" +ScaleWidth+ " height=20 font=60 color=White background=None location=[Lower Right] bold overlay"); //put scale bar
+	}
+	//if(AutoContra==1){
+	//	run("Enhance Contrast", "saturated="+saturation);								//for automatic
+	//}
+	//if(AutoContra==0){
+	//	setMinAndMax(MinContrast, MaxContrast);												//for manual
+	//}
+	//I want an error															//used to trigger an error and check variables.
+	if(PNG==1){
+		saveAs("PNG", dirPNG+"\\"+Truename+".PNG");
+	}
+	if(BMP==1){
+		run("Stack to RGB");
+		if(YesNoScale==1){
+		run("Scale Bar...", "width=" +ScaleWidth+ " height=20 font=60 color=White background=None location=[Lower Right] bold overlay"); //put scale bar,needed for BMP for some reason
+	}
+		saveAs("BMP", dirBMP+"\\"+Truename+".BMP");
+	}
+	if(Tiff==1){
+		saveAs("Tiff", dirTiff+"\\"+Truename+".Tiff");
+	}
+	if(JPEG==1){
+		saveAs("Jpeg", dirJPEG+"\\"+Truename+".Jpeg");
+	}
+	run("Close All");
+	print("\\Clear");
+	NbImage=NbImage+1;
+
+showMessage("Program completed, "+NbImage+" merging! Have a nice day!");
+}
+exit;																			//finish the program
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+run("Images to Stack", "name=Orange title=542 use");
+
+run("Images to Stack", "name=Blue title=390 use");
+run("Merge Channels...", "c1=Orange c3=Blue create");
+//run("Brightness/Contrast...");
+run("Enhance Contrast", "saturated=0.35");
+selectWindow("Composite");
+run("Enhance Contrast", "saturated=0.35");
+run("Stack to RGB", "slices keep");
+saveAs("Jpeg", "C:/Users/NT271833/IMAGE_ANALYSIS_LOCAL/WORKING FOLDER/20240513_LBL08_3D/20240513_RED-DAPI_3DSTACK_655891/Composite-1.jpg");
+selectWindow("Composite");
+
+
+//CropClicker_V1
+//Macro to save square in images, by opening a stack and clicking on the area of interest
+//initialisation-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+function CropClicker(){
+//automatic parameters															use for preset parameter for faster batching. Modifify parameters in function.
+													
+	Supplement="";
+	PNG=0;
+	BMP=0;
+	Tiff=0;
+	JPEG=0;
+	Scaleornoscale=1;
+	Valueofscale=50;
+	//BURN=0;
+	dirPNG="";
+	dirBMP="";
+	dirTiff="";
+	dirJPEG="";
+	Folderimage="";
+	CropClick=1;
+	CropHeight=500;
+	CropWidth=500;
+	PositionX=350;
+	PositionY=350;
+	SaveX=PositionX;
+	SaveY=PositionY;
+	ImageOpen=true;
+	
+//with a dialog box
+	roiManager("reset");																	//clean start
+	run("Clear Results");
+	run("Close All");
+	closeNonImageWindows();
+	setBatchMode(false);
+	Dialog.create("CropClicker_V1");			
+		Dialog.addMessage("--Crop parameters---");
+		Dialog.addCheckbox("Do you want to chose position?", CropClick);
+		Dialog.addNumber("Crop Height?", CropHeight);
+		Dialog.addNumber("Crop Width?", CropWidth);
+		Dialog.addCheckbox("Do you want to add scale?", Scaleornoscale);
+		Dialog.addNumber("What scale do you want? (µm)", Valueofscale);
+		Dialog.addString("Do you want to add something in the end?", Supplement);
+		Dialog.addMessage("--Ways of saving---");
+		Dialog.addCheckbox("Save in TIF?", Tiff);
+		Dialog.addCheckbox("Save in JPEG?", JPEG);
+		Dialog.addCheckbox("Save in PNG? (slower)", PNG);
+		Dialog.addCheckbox("Save in BMP?", BMP);
+	Dialog.show();
+	CropClick=Dialog.getCheckbox();
+	CropHeight= Dialog.getNumber();
+	CropWidth= Dialog.getNumber();
+	Scaleornoscale=Dialog.getCheckbox();
+	Valueofscale= Dialog.getNumber();
+	Supplement= Dialog.getString();
+	Tiff=Dialog.getCheckbox();
+	JPEG=Dialog.getCheckbox();
+	PNG=Dialog.getCheckbox();
+	BMP=Dialog.getCheckbox();
+	if(PNG==0){
+		if(BMP==0){
+			if(Tiff==0){
+				if(JPEG==0){
+					exit("Select at least one way to save images");								//prevent errors
+				}
+			}
+		}
+	}
+//Choose folder to analyse and save												
+	Dialog.create("Save folders");
+		Dialog.addDirectory("Select the images to analyse:",Folderimage);						//to choose a directory directly
+	if(PNG==1){
+		Dialog.addDirectory("Select a folder to save in PNG:", dirPNG);
+	}
+	if(BMP==1){
+		Dialog.addDirectory("Select a folder to save in BMP:", dirBMP);
+	}
+	if(Tiff==1){
+		Dialog.addDirectory("Select a folder to save in TIFF:", dirTiff);
+	}
+	if(JPEG==1){
+		Dialog.addDirectory("Select a folder to save in JPEG:", dirJPEG);
+	}
+	Dialog.show();
+	
+	Folderimage=Dialog.getString();
+	if(PNG==1){
+		dirPNG=Dialog.getString();
+	}
+	if(BMP==1){
+		dirBMP=Dialog.getString();
+	}
+	if(Tiff==1){
+		dirTiff=Dialog.getString();
+	}
+	if(JPEG==1){
+		dirJPEG=Dialog.getString();
+	}
+	dir=Folderimage;													
+	list=getFileList(Folderimage);												//Get the files of a folder
+
+
+//Main program---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+run("Close All");																//allow a smooth start with no interferences
+
+//part for opening everything
+for(i=0; i<list.length; i=i+1){									//i start at zero, and while i<list.length, i increase by one each iteration
+	//print("\\Clear");															//clean log
+		open(dir+"\\"+list[i]);												//Open n file of dir: open the batch composed of k image
+		Truename=getTitle();														//take the title of the image and put it in a variable
+		Temp=split(Truename, ".");											//remove .tif
+		Truename=Temp[0];
+		print(Truename);															//put the name stored in variable in the log
+
+	Truename=Truename+Supplement;											//add the supplement to the name
+	if(CropClick==1){
+		while(ImageOpen==true){													//loop to wait for the click
+				
+				getCursorLoc(PositionX, PositionY, z, flags);					//get cursor position!
+				if (flags==16||flags==1){
+					ImageOpen=false;											//to stop the loop
+			PositionX=PositionX-CropWidth/2;									//to make it so the click is the center of the crop
+			PositionY=PositionY-CropHeight/2;
+			makeRectangle(PositionX, PositionY, CropHeight, CropWidth);			//make the rectangle for cropping
+			run("Crop");														//crop
+			rename(Truename);
+			print("Saving "+Truename);
+			if(Scaleornoscale==1){
+			run("Scale Bar...", "width="+Valueofscale+" height=20 font=60 color=White background=None location=[Lower Right] bold overlay"); //put scale bar
+			}
+			if(PNG==1){
+				saveAs("PNG", dirPNG+"\\"+Truename+".PNG");
+			}
+			if(BMP==1){
+				run("Stack to RGB");
+				run("Scale Bar...", "width="+Valueofscale+" height=20 font=60 color=White background=None location=[Lower Right] bold overlay");
+				saveAs("BMP", dirBMP+"\\"+Truename+".BMP");
+			}
+			if(Tiff==1){
+				saveAs("Tiff", dirTiff+"\\"+Truename+".Tiff");
+			}
+			if(JPEG==1){
+				saveAs("Jpeg", dirJPEG+"\\"+Truename+".Jpeg");
+			}
+			run("Close All");
+			//print("\\Clear");
+				}
+		}
+		ImageOpen=true;															//restart the loop
+	}
+	if(CropClick==0){
+			PositionX=PositionX-CropWidth/2;									//to make it so the click is the center of the crop
+			PositionY=PositionY-CropHeight/2;
+			makeRectangle(PositionX, PositionY, CropHeight, CropWidth);			//make the rectangle for cropping
+			run("Crop");														//crop
+			rename(Truename);
+			print("Saving "+Truename);
+			if(Scaleornoscale==1){
+			run("Scale Bar...", "width="+Valueofscale+" height=20 font=60 color=White background=None location=[Lower Right] bold overlay"); //put scale bar
+			}
+			if(PNG==1){
+				saveAs("PNG", dirPNG+"\\"+Truename+".PNG");
+			}
+			if(BMP==1){
+				run("Stack to RGB");
+				run("Scale Bar...", "width="+Valueofscale+" height=20 font=60 color=White background=None location=[Lower Right] bold overlay");
+				saveAs("BMP", dirBMP+"\\"+Truename+".BMP");
+			}
+			if(Tiff==1){
+				saveAs("Tiff", dirTiff+"\\"+Truename+".Tiff");
+			}
+			if(JPEG==1){
+				saveAs("Jpeg", dirJPEG+"\\"+Truename+".Jpeg");
+			}
+			run("Close All");
+			//print("\\Clear");
+					PositionX=SaveX;
+					PositionY=SaveY;
+				}
+	}
+showMessage("All images cropped! Good job!");
+}
+exit;																			//finish the program
+
+function closeNonImageWindows(){
+	windows=getList("window.titles");
+	for(i=0; i<windows.length; i++){
+		selectWindow(windows[i]);
+		run("Close");
+	}	
+}
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+//STICHING NT V6
+
+function STICHING(){
+
+//Macro to merge and save images (BMP and TIFF)
+//Automatic stiching of image. Use base of "Merge NT". Enter the parameters in boxes, change the default in the beginning. Automatic contrast or set.
+//Batchmode for faster analysis, and background work
+//initialisation-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//automatic parameters															use for preset parameter for faster batching. Modifify parameters in function.
+	NombreChannel="4";														
+	Supplement="";
+	PNG=0;
+	BMP=0;
+	Tiff=0;
+	JPEG=0;
+	ncollums=2;
+	nrows=2;
+	Scaleornoscale=0;
+	Valueofscale=1000;
+	//BURN=0;
+	ContrastValue=0.35;
+	MinThresh=10850;
+	MaxThresh=13650;
+	Yellowing=0;
+	ToStichOrNotToStich=1;
+	dirPNG="";
+	dirBMP="";
+	dirTiff="";
+	dirJPEG="";
+	Folderimage="";
+	//Justmerge=0;
+	ArrayOptions= newArray("Auto Contrast","Burn","No Modification");
+	ArrayChoice="No Modification";
+	
+//with a dialog box
+	roiManager("reset");																	//clean start
+	run("Clear Results");
+	run("Close All");
+	closeNonImageWindows();
+	setBatchMode(true);
+	Dialog.create("Stiching NT V2 Macro");			
+		Dialog.addMessage	("--Stiching parameters---");
+		Dialog.addCheckbox	("Do you want to stich (or no if just convert)?", ToStichOrNotToStich);
+		Dialog.addNumber	("Number of images to stich in one?", NombreChannel);
+		Dialog.addCheckbox	("Do you want to add scale?", Scaleornoscale);
+		Dialog.addNumber	("What scale do you want? (µm)", Valueofscale);
+		Dialog.addString	("Do you want to add something in the end?", Supplement);
+		Dialog.addNumber	("How many collums?", ncollums);
+		Dialog.addNumber	("How many rows?", nrows);
+		Dialog.addMessage	("--Image correction---");
+		Dialog.addChoice	("What type of merge?", ArrayOptions, ArrayChoice);					//give choice (limit variable and possible errors)
+		Dialog.addString	("What autocontrast value?", ContrastValue);
+		Dialog.addNumber	("If burn, what MinThreshold?", MinThresh);
+		Dialog.addNumber	("If burn, what MaxThreshold?", MaxThresh);
+		Dialog.addCheckbox	("Yellowing?", Yellowing);
+		Dialog.addMessage	("--Ways of saving---");
+		Dialog.addCheckbox	("Save in TIF?", Tiff);
+		Dialog.addCheckbox	("Save in JPEG?", JPEG);
+		Dialog.addCheckbox	("Save in PNG? (slower)", PNG);
+		Dialog.addCheckbox	("Save in BMP?", BMP);
+	Dialog.show();
+	ToStichOrNotToStich=Dialog.getCheckbox();
+	NombreChannel= 		Dialog.getNumber();
+	Scaleornoscale=		Dialog.getCheckbox();
+	Valueofscale= 		Dialog.getNumber();
+	Supplement= 		Dialog.getString();
+	ncollums=			Dialog.getNumber();
+	nrows=				Dialog.getNumber();
+	ArrayChoice=		Dialog.getChoice();
+	ContrastValue= 		Dialog.getString();
+	//Justmerge=Dialog.getCheckbox();
+	//BURN=Dialog.getCheckbox();
+	MinThresh= 			Dialog.getNumber();
+	MaxThresh= 			Dialog.getNumber();
+	Yellowing=			Dialog.getCheckbox();
+	Tiff=				Dialog.getCheckbox();
+	JPEG=				Dialog.getCheckbox();
+	PNG=				Dialog.getCheckbox();
+	BMP=				Dialog.getCheckbox();
+	if(PNG==0){
+		if(BMP==0){
+			if(Tiff==0){
+				if(JPEG==0){
+					exit("Select at least one way to save images");								//prevent errors
+				}
+			}
+		}
+	}
+//Choose folder to analyse and save												
+	Dialog.create("Save folders");
+		Dialog.addDirectory("Select the images to analyse:",Folderimage);						//to choose a directory directly
+	if(PNG==1){
+		Dialog.addDirectory("Select a folder to save in PNG:", dirPNG);
+	}
+	if(BMP==1){
+		Dialog.addDirectory("Select a folder to save in BMP:", dirBMP);
+	}
+	if(Tiff==1){
+		Dialog.addDirectory("Select a folder to save in TIFF:", dirTiff);
+	}
+	if(JPEG==1){
+		Dialog.addDirectory("Select a folder to save in JPEG:", dirJPEG);
+	}
+	Dialog.show();
+	
+	Folderimage=Dialog.getString();
+	if(PNG==1){
+		dirPNG=Dialog.getString();
+	}
+	if(BMP==1){
+		dirBMP=Dialog.getString();
+	}
+	if(Tiff==1){
+		dirTiff=Dialog.getString();
+	}
+	if(JPEG==1){
+		dirJPEG=Dialog.getString();
+	}
+	dir=Folderimage;													
+	list=getFileList(Folderimage);												//Get the files of a folder
+
+
+//Main program---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+run("Close All");																//allow a smooth start with no interferences
+
+//part for opening everything
+if(ToStichOrNotToStich==0){
+	NombreChannel=1;
+}
+
+for(i=0; i<list.length-1; i=i+NombreChannel){									//i start at zero, and while i<list.length, i increase by one each iteration
+	print("\\Clear");															//clean log
+	for(k=0; k<NombreChannel;k++){
+		open(dir+"\\"+list[i+k]);												//Open n file of dir: open the batch composed of k image
+		//run("Enhance Contrast", "saturated=0.35");								//automatic contrast
+		Name=getTitle();														//take the title of the image and put it in a variable
+		print(Name);															//put the name stored in variable in the log
+	}
+
+//get the name of everything and sort them
+	Names=getInfo("log");														//get the printed names from log
+	Namesplited=split(Names,"\n");												//separate each line
+	Name1=Namesplited[0];
+	Namecut= split(Name1, "(");													//cut the name before the (
+	Truename= Namecut[0] + Supplement;	
+//merging, renaming, scale bar, and saving
+	if(ToStichOrNotToStich==1){
+		run("Images to Stack", "name=Stack title=[] use");
+		run("Make Montage...", "columns=" +ncollums+" rows="+nrows+" scale=0.25");
+	}
+	rename(Truename);															//give the "true" name, constitued from fragment of the images (only the beginning)
+	if(Scaleornoscale==1){
+	run("Scale Bar...", "width="+Valueofscale+" height=20 font=60 color=White background=None location=[Lower Right] bold overlay"); //put scale bar
+	}
+	if(Yellowing==1){
+		run("Yellow");
+	}
+	if(ArrayChoice=="No Modification"){
+																							//nothing!
+	}
+	if(ArrayChoice=="Auto Contrast"){
+		run("Enhance Contrast", "saturated="+ContrastValue);								//for automatic
+	}
+	if(ArrayChoice=="Burn"){
+		setMinAndMax(MinThresh, MaxThresh);													//for manual,or burning for more details
+	}
+	//I want an error															//used to trigger an error and check variables.
+	if(PNG==1){
+		saveAs("PNG", dirPNG+"\\"+Truename+".PNG");
+	}
+	if(BMP==1){
+		run("Stack to RGB");
+		run("Scale Bar...", "width="+Valueofscale+" height=20 font=60 color=White background=None location=[Lower Right] bold overlay");
+		saveAs("BMP", dirBMP+"\\"+Truename+".BMP");
+	}
+	if(Tiff==1){
+		saveAs("Tiff", dirTiff+"\\"+Truename+".Tiff");
+	}
+	if(JPEG==1){
+		saveAs("Jpeg", dirJPEG+"\\"+Truename+".Jpeg");
+	}
+	run("Close All");
+	print("\\Clear");
+}
+showMessage("Images stiched together! have a nice day!");
+}
+exit;																			//finish the program
+
+function closeNonImageWindows(){
+	windows=getList("window.titles");
+	for(i=0; i<windows.length; i++){
+		selectWindow(windows[i]);
+		run("Close");
+	}
+}
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+//IMAGE CONVERTER V2
+
+function IMAGE_CONVERTER(){
+
+//Macro to convert image in different format or apply minor modification.
+//initialisation-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//automatic parameters															use for preset parameter for faster batching. Modifify parameters in function.
+													
+	Supplement="";
+	PNG=0;
+	BMP=0;
+	Tiff=0;
+	JPEG=0;
+	ncollums=2;
+	nrows=2;
+	Scaleornoscale=1;
+	Valueofscale=1000;
+	//BURN=0;
+	ContrastValue=0.35;
+	MinThresh=10850;
+	MaxThresh=13650;
+	Yellowing=0;
+	dirPNG="";
+	dirBMP="";
+	dirTiff="";
+	dirJPEG="";
+	Folderimage="";
+	//Justmerge=0;
+	ArrayOptions= newArray("Auto Contrast","Burn","No Modification");
+	ArrayChoice="Auto Contrast";
+	
+//with a dialog box
+	roiManager("reset");																	//clean start
+	run("Clear Results");
+	run("Close All");
+	closeNonImageWindows();
+	setBatchMode(true);
+	Dialog.create("Stiching NT V2 Macro");			
+		Dialog.addMessage("--Stiching parameters---");
+		Dialog.addCheckbox("Do you want to add scale?", Scaleornoscale);
+		Dialog.addNumber("What scale do you want? (µm)", Valueofscale);
+		Dialog.addString("Do you want to add something in the end?", Supplement);
+		Dialog.addMessage("--Image correction---");
+		Dialog.addChoice("What type of merge?", ArrayOptions, ArrayChoice);					//give choice (limit variable and possible errors)
+		Dialog.addString("What autocontrast value?", ContrastValue);
+		//Dialog.addCheckbox("or no modification, just merge?", Justmerge);
+		//Dialog.addCheckbox("or burn image?", BURN);
+		Dialog.addNumber("If burn, what MinThreshold?", MinThresh);
+		Dialog.addNumber("If burn, what MaxThreshold?", MaxThresh);
+		Dialog.addCheckbox("Yellowing?", Yellowing);
+		Dialog.addMessage("--Ways of saving---");
+		Dialog.addCheckbox("Save in TIF?", Tiff);
+		Dialog.addCheckbox("Save in JPEG?", JPEG);
+		Dialog.addCheckbox("Save in PNG? (slower)", PNG);
+		Dialog.addCheckbox("Save in BMP?", BMP);
+	Dialog.show();
+	Scaleornoscale=Dialog.getCheckbox();
+	Valueofscale= Dialog.getNumber();
+	Supplement= Dialog.getString();
+	ArrayChoice=Dialog.getChoice();
+	ContrastValue= Dialog.getString();
+	//Justmerge=Dialog.getCheckbox();
+	//BURN=Dialog.getCheckbox();
+	MinThresh= Dialog.getNumber();
+	MaxThresh= Dialog.getNumber();
+	Yellowing=Dialog.getCheckbox();
+	Tiff=Dialog.getCheckbox();
+	JPEG=Dialog.getCheckbox();
+	PNG=Dialog.getCheckbox();
+	BMP=Dialog.getCheckbox();
+	if(PNG==0){
+		if(BMP==0){
+			if(Tiff==0){
+				if(JPEG==0){
+					exit("Select at least one way to save images");								//prevent errors
+				}
+			}
+		}
+	}
+//Choose folder to analyse and save												
+	Dialog.create("Save folders");
+		Dialog.addDirectory("Select the images to analyse:",Folderimage);						//to choose a directory directly
+	if(PNG==1){
+		Dialog.addDirectory("Select a folder to save in PNG:", dirPNG);
+	}
+	if(BMP==1){
+		Dialog.addDirectory("Select a folder to save in BMP:", dirBMP);
+	}
+	if(Tiff==1){
+		Dialog.addDirectory("Select a folder to save in TIFF:", dirTiff);
+	}
+	if(JPEG==1){
+		Dialog.addDirectory("Select a folder to save in JPEG:", dirJPEG);
+	}
+	Dialog.show();
+	
+	Folderimage=Dialog.getString();
+	if(PNG==1){
+		dirPNG=Dialog.getString();
+	}
+	if(BMP==1){
+		dirBMP=Dialog.getString();
+	}
+	if(Tiff==1){
+		dirTiff=Dialog.getString();
+	}
+	if(JPEG==1){
+		dirJPEG=Dialog.getString();
+	}
+	dir=Folderimage;													
+	list=getFileList(Folderimage);												//Get the files of a folder
+
+
+//Main program---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+run("Close All");																//allow a smooth start with no interferences
+
+//part for opening everything
+for(i=0; i<list.length-1; i=i+1){									//i start at zero, and while i<list.length, i increase by one each iteration
+	print("\\Clear");															//clean log
+		open(dir+"\\"+list[i]);												//Open n file of dir: open the batch composed of k image
+		Names=getTitle();														//take the title of the image and put it in a variable
+		print(Names);															//put the name stored in variable in the log
+
+//get the name of everything and sort them
+
+	Namecut= split(Names, ".");													//cut the name before the .tif
+	Truename= Namecut[0] + Supplement;	
+//merging, renaming, scale bar, and saving
+	//run("Images to Stack", "name=Stack title=[] use");
+	//run("Make Montage...", "columns=" +ncollums+" rows="+nrows+" scale=0.25");
+	rename(Truename);															//give the "true" name, constitued from fragment of the images (only the beginning)
+	if(Scaleornoscale==1){
+	run("Scale Bar...", "width="+Valueofscale+" height=20 font=60 color=White background=None location=[Lower Right] bold overlay"); //put scale bar
+	}
+	if(Yellowing==1){
+		run("Yellow");
+	}
+	if(ArrayChoice=="No Modification"){
+																							//nothing!
+	}
+	if(ArrayChoice=="Auto Contrast"){
+		run("Enhance Contrast", "saturated="+ContrastValue);								//for automatic
+	}
+	if(ArrayChoice=="Burn"){
+		setMinAndMax(MinThresh, MaxThresh);													//for manual,or burning for more details
+	}
+	//I want an error															//used to trigger an error and check variables.
+	if(PNG==1){
+		saveAs("PNG", dirPNG+"\\"+Truename+".PNG");
+	}
+	if(BMP==1){
+		run("Stack to RGB");
+		run("Scale Bar...", "width="+Valueofscale+" height=20 font=60 color=White background=None location=[Lower Right] bold overlay");
+		saveAs("BMP", dirBMP+"\\"+Truename+".BMP");
+	}
+	if(Tiff==1){
+		saveAs("Tiff", dirTiff+"\\"+Truename+".Tiff");
+	}
+	if(JPEG==1){
+		saveAs("Jpeg", dirJPEG+"\\"+Truename+".Jpeg");
+	}
+	run("Close All");
+	print("\\Clear");
+}
+showMessage("Images stiched together! have a nice day!");
+}
+exit;																			//finish the program
+
+function closeNonImageWindows(){
+	windows=getList("window.titles");
+	for(i=0; i<windows.length; i++){
+		selectWindow(windows[i]);
+		run("Close");
+	}
+}
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+//GRAY VALUE BATCH V3
+
+function GRAY_VALUE_BATCH(){
+
+//macro designed for getting the mean gray values of a batch of images. Easy to adapt to take the value of a circle, line etc. Choose folder with images, and place to save a CSV with results (you choose the name).
+
+Folderimage="";
+SaveCSV="";
+NameFile="MEASUREMENT_RESULT";
+Circling=0;
+
+//start
+	roiManager("reset");																	//clean start
+	run("Clear Results");
+	run("Close All");
+	closeNonImageWindows();
+	setBatchMode(true);
+	
+//core
+	Dialog.create("Gray values calculator");
+		Dialog.addDirectory("Select the images to analyse:",Folderimage);						//to choose a directory directly
+		Dialog.addDirectory("Choose a folder to save your CSV:", SaveCSV);
+		Dialog.addString("Name of CSV:", NameFile, 30);
+		Dialog.addCheckbox("Circle a well?", Circling);
+	Dialog.show();
+	Folderimage=Dialog.getString();
+	SaveCSV=Dialog.getString();
+	NameFile=Dialog.getString();
+	Circling=Dialog.getCheckbox();
+	dir=Folderimage;													
+	list=getFileList(Folderimage);												//Get the files of a folder*
+	
+	run("Close All");
+	for(i=0; i<list.length; i=i+1){									//i start at zero, and while i<list.length, i increase by one each iteration
+		open(dir+"\\"+list[i]);												//Open n file of dir: open the batch composed of k image
+		run("Set Measurements...", "area mean min fit shape display redirect=None decimal=4");		//allow to be sure parameters are good
+		if(Circling==1){
+			makeOval(0, 16, 990, 996);
+		}
+		run("Measure");																				//get the parameters of interest
+		run("Close All");
+	}
+saveAs("Results", SaveCSV+NameFile+".csv");
+showMessage(NameFile+" the CSV saved!");
+}
+exit;
+
+
+//setTool("line");
+makeLine(2, 2, 1020, 1020);
+run("Histogram");
+
+
+run("Measure");
+open("C:/Users/NT271833/MACRO_USED/Neurite_Analysis_Macro_Changed_V6.ijm");
+close();
+open("C:/Users/NT271833/IMAGE_ANALYSIS_LOCAL/20240117_LBL_PLATE003_SCAN/scan film LBL fluo/STICH_20X/A - 02.tif");
+selectWindow("A - 02.tif");
+run("Measure");
+saveAs("Results", "C:/Users/NT271833/IMAGE_ANALYSIS_LOCAL/20240117_LBL_PLATE003_SCAN/scan film LBL fluo/Results.csv");
+
+
+//MERGE NT V7
+
+function MERGE(){
+
+//Macro to merge and save images (TIFF, BMP, JPEG, PNG)
+//Two set up: with automatic or manual parameters. Use the // to deactivate or activate the manual parameter depending if you want to input them or not. The dialog box is also an option.
+//Goal: merging of 2 or 3 channels of image. Automatic name, automatic coloring, designed for batches.
+//initialisation-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//automatic parameters															use for preset parameter for faster batching. Modifify parameters in function.
+	setBatchMode(true);
+	NombreChannel="2";														
+	Blue="390";
+	Orange="542";
+	Green="Green";
+	Supplement="";
+	Colorname = "";
+	PNG=0;
+	BMP=0;
+	Tiff=0;
+	JPEG=0;
+	YesNoScale=0;
+	ScaleWidth=100;
+	Firstcolor="c1";
+	Secondcolor="c3";
+	Thirdcolor="c2";
+	AutoContra=1;
+	MinContrast=500;
+	MaxContrast=40000;
+	saturation=0.35;
+	CompleteControl=0;
+	NbImage=0;
+	
+	AutoContra1=1;
+	MinContrast1=500;
+	MaxContrast1=40000;
+	saturation1=0.35;
+	
+	AutoContra2=1;
+	MinContrast2=500;
+	MaxContrast2=40000;
+	saturation2=0.35;
+	
+	AutoContra3=1;
+	MinContrast3=500;
+	MaxContrast3=40000;
+	saturation3=0.35;
+	
+	dirPNG="";
+	dirBMP="";
+	dirTiff="";
+	dirJPEG="";
+	Folderimage="";
+	
+//manual parameters																use for manual parameters
+	//NombreChannel=getNumber("Number of channel? 2 or 3?", 3);
+	//Firstcolor=getString("What is the first color? c1 for red, c3 for blue, c2 for green, c4 for white, c5 for cyan, c6 for magenta, c7 for yellow", "c1");
+	//Secondcolor=getString("What is the second color? c1 for red, c3 for blue, c2 for green, c4 for white, c5 for cyan, c6 for magenta, c7 for yellow", "c3");
+	//if(NombreChannel==3){
+		//Thirdcolor=getString("What is the third color? c1 for red, c3 for blue, c2 for green, c4 for white, c5 for cyan, c6 for magenta, c7 for yellow", "c2");
+		//Green=getString("What is "+ Thirdcolor +"? Red, Blue, Green, Brightfield, Cyan, Magenta, Yellow or something else?", "Green");
+	//}
+	//Orange=getString("What is "+ Firstcolor +"? Red, Blue, Green, Brightfield, Cyan, Magenta, Yellow or something else?", "Orange");
+	//Blue=getString("What is "+ Secondcolor +"? Red, Blue, Green, Brightfield, Cyan, Magenta, Yellow or something else?", "Blue");
+	//Supplement=getString("Do you want to add something in the end?", "");
+	//Tiff=getBoolean("Save in Tiff?");
+	//PNG=getBoolean("Save in PNG?");
+	//BMP=getBoolean("Save in BMP?");
+	//JPEG=getBoolean("Save in JPEG?");
+//with a dialog box
+	
+//first box------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------	
+	
+	NombreChannel=getNumber("Number of channel? 2 or 3?", NombreChannel);				//first we ask number of channel, for it will influence the boxes
+	
+//second box------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------	
+	
+	Dialog.create("Choose your channels");									//next the channel (and therefore coloration) used
+		Dialog.addMessage("c1 for red, c3 for blue, c2 for green, c4 for white, c5 for cyan, c6 for magenta, c7 for yellow.");
+		Dialog.addString("What is the first color?", Firstcolor);
+		Dialog.addString("What is the second color?", Secondcolor);
+		if(NombreChannel==3){
+			Dialog.addString("What is the third color?", Thirdcolor);
+		}
+		Dialog.addCheckbox("Do you wish to control contrast parameter for each channel?", CompleteControl);
+	Dialog.show();															//we show the box
+	Firstcolor=Dialog.getString();											//we get the result into the variables
+	Secondcolor=Dialog.getString();
+	if(NombreChannel==3){
+			Thirdcolor=Dialog.getString();
+		}
+	CompleteControl=Dialog.getCheckbox();
+	
+//third box------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+	
+	Dialog.create("What is the name of each channel, first word after wv? Do you want a supplement? in which way do you want to save them?");			//rinse and repeat, with the name used in the image for colors
+		Dialog.addMessage("--Merging parameters---");
+		Dialog.addMessage("Put the word after ''wv'' in Marcel Image");
+		Dialog.addString("What is "+ Firstcolor +"?", Orange);
+			if(CompleteControl==1){
+				Dialog.addCheckbox("Auto contrast?", AutoContra1);
+				Dialog.addNumber("If autocontrast, what saturation?", saturation1);
+				Dialog.addNumber("If no autocontrast, what min value?", MinContrast1);
+				Dialog.addNumber("If no autocontrast, what max value?", MaxContrast1);
+			}
+		Dialog.addString("What is "+ Secondcolor +"?", Blue);
+			if(CompleteControl==1){
+				Dialog.addCheckbox("Auto contrast?", AutoContra2);
+				Dialog.addNumber("If autocontrast, what saturation?", saturation2);
+				Dialog.addNumber("If no autocontrast, what min value?", MinContrast2);
+				Dialog.addNumber("If no autocontrast, what max value?", MaxContrast2);
+			}
+		if(NombreChannel==3){
+			Dialog.addString("What is "+ Thirdcolor +"?", Green);
+			if(CompleteControl==1){
+				Dialog.addCheckbox("Auto contrast?", AutoContra3);
+				Dialog.addNumber("If autocontrast, what saturation?", saturation3);
+				Dialog.addNumber("If no autocontrast, what min value?", MinContrast3);
+				Dialog.addNumber("If no autocontrast, what max value?", MaxContrast3);
+			}
+		}
+		Dialog.addMessage("--Supplements to merged image---");
+		Dialog.addString("Do you want to add something in the end?", Supplement);
+		Dialog.addCheckbox("Scale bar?", YesNoScale);
+		Dialog.addString("What size of scale bar? (µm)", ScaleWidth);
+		if(CompleteControl==0){
+			Dialog.addCheckbox("Auto contrast?", AutoContra);
+			Dialog.addNumber("If autocontrast, what saturation?", saturation);
+			Dialog.addNumber("If no autocontrast, what min value?", MinContrast);
+			Dialog.addNumber("If no autocontrast, what max value?", MaxContrast);
+		}
+		Dialog.addMessage("--Ways of saving---");
+		Dialog.addCheckbox("Save in Tiff?", Tiff);
+		Dialog.addCheckbox("Save in JPEG?", JPEG);
+		Dialog.addCheckbox("Save in PNG? (slower for some reason)", PNG);
+		Dialog.addCheckbox("Save in BMP?", BMP);
+	Dialog.show();
+	Orange= Dialog.getString();
+	if(CompleteControl==1){
+		AutoContra1=Dialog.getCheckbox();
+		saturation1=Dialog.getNumber();
+		MinContrast1=Dialog.getNumber();
+		MaxContrast1=Dialog.getNumber();
+	}
+	Blue= Dialog.getString();
+	if(CompleteControl==1){
+		AutoContra2=Dialog.getCheckbox();
+		saturation2=Dialog.getNumber();
+		MinContrast2=Dialog.getNumber();
+		MaxContrast2=Dialog.getNumber();
+	}
+	if(NombreChannel==3){
+			Green=Dialog.getString();
+			if(CompleteControl==1){
+			AutoContra3=Dialog.getCheckbox();
+			saturation3=Dialog.getNumber();
+			MinContrast3=Dialog.getNumber();
+			MaxContrast3=Dialog.getNumber();
+			}
+	}
+	Supplement=Dialog.getString();
+	YesNoScale=Dialog.getCheckbox();
+	ScaleWidth=Dialog.getString();
+	if(CompleteControl==0){
+		AutoContra=Dialog.getCheckbox();
+		saturation=Dialog.getNumber();
+		MinContrast=Dialog.getNumber();
+		MaxContrast=Dialog.getNumber();
+	}
+	Tiff=Dialog.getCheckbox();
+	JPEG=Dialog.getCheckbox();
+	PNG=Dialog.getCheckbox();
+	BMP=Dialog.getCheckbox();
+	
+	if(PNG==0){
+		if(BMP==0){
+			if(Tiff==0){
+				if(JPEG==0){
+					exit("Select at least one way to save images");								//prevent errors
+				}
+			}
+		}
+	}
+//Choose folder to analyse and save												
+	
+	Dialog.create("Neuroblastoma morphology analysis");
+		Dialog.addDirectory("Select the images to analyse:",Folderimage);						//to choose a directory directly
+	if(PNG==1){
+		Dialog.addDirectory("Select a folder to save in PNG:", dirPNG);
+	}
+	if(BMP==1){
+		Dialog.addDirectory("Select a folder to save in BMP:", dirBMP);
+	}
+	if(Tiff==1){
+		Dialog.addDirectory("Select a folder to save in TIFF:", dirTiff);
+	}
+	if(JPEG==1){
+		Dialog.addDirectory("Select a folder to save in JPEG:", dirJPEG);
+	}
+	Dialog.show();
+	
+	Folderimage=Dialog.getString();
+	if(PNG==1){
+		dirPNG=Dialog.getString();
+	}
+	if(BMP==1){
+		dirBMP=Dialog.getString();
+	}
+	if(Tiff==1){
+		dirTiff=Dialog.getString();
+	}
+	if(JPEG==1){
+		dirJPEG=Dialog.getString();
+	}
+	dir=Folderimage;													
+	list=getFileList(Folderimage);												//Get the files of a folder
+
+
+//Main program---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+run("Close All");																//allow a smooth start with no interferences
+
+//part for opening everything
+for(i=0; i<list.length-1; i=i+NombreChannel){									//i start at zero, and while i<list.length, i increase by one each iteration
+	print("\\Clear");															//clean log
+	for(k=0; k<NombreChannel;k++){
+		open(dir+"\\"+list[i+k]);												//Open n file of dir: open the batch composed of k image
+		if(CompleteControl==0){
+			if(AutoContra==1){
+			run("Enhance Contrast", "saturated="+saturation);								//for automatic
+			}
+			if(AutoContra==0){
+				setMinAndMax(MinContrast, MaxContrast);												//for manual
+			}
+		}	
+		//run("Enhance Contrast", "saturated=0.35");								//automatic contrast
+		Name=getTitle();														//take the title of the image and put it in a variable
+		print(Name);															//put the name stored in variable in the log
+	}
+
+//get the name of everything and sort them
+	Names=getInfo("log");														//get the printed names from log
+	Namesplited=split(Names,"\n");												//separate each line
+		for (j=0; j<NombreChannel;j++){
+			Titletotest = Namesplited[j];
+			Cutend = split(Titletotest, ".");
+//different way of doing this, with different pro/cons	
+			//Cutstart = split(Cutend[0], " )");
+			//Colorname = Cutstart[7];
+			//print(Cutstart[7]);
+			Cutstart = split(Cutend[0], "(wv)");
+			Removingparanthesis = split(Cutstart[1], ")");
+			Removingspace = split(Removingparanthesis[0]," ");
+			Colorname= Removingspace[0];
+				if(Colorname == Blue) {												//check the color and deal accordingly
+					Bluename=Namesplited[j];
+					selectWindow(Bluename);
+					if(CompleteControl==1){
+						if(AutoContra2==1){
+							run("Enhance Contrast", "saturated="+saturation2);								//for automatic
+						}
+						if(AutoContra2==0){
+							setMinAndMax(MinContrast2, MaxContrast2);												//for manual
+						}
+					}
+				}
+				if(Colorname == Orange) {
+					Orangename=Namesplited[j];
+					selectWindow(Orangename);
+					if(CompleteControl==1){
+						if(AutoContra1==1){
+							run("Enhance Contrast", "saturated="+saturation1);								//for automatic
+						}
+						if(AutoContra1==0){
+							setMinAndMax(MinContrast1, MaxContrast1);												//for manual
+						}
+					}
+				}
+				if(Colorname == Green) {
+					Greenname=Namesplited[j];
+					selectWindow(Greenname);
+					if(CompleteControl==1){
+						if(AutoContr3a==1){
+							run("Enhance Contrast", "saturated="+saturation3);								//for automatic
+						}
+						if(AutoContra3==0){
+							setMinAndMax(MinContrast3, MaxContrast3);												//for manual
+						}
+					}
+				}
+			//if (Titletotest.contains(Blue){
+			//	Bluename=Namesplited[j];
+			//}
+			//if (Titletotest.contains(Orange){
+			//	Orangename=Namesplited[j];
+			//}
+			//if (Titletotest.contains(Green){
+			//	Greename=Namesplited[j];
+			//}
+		}
+	Name1=Namesplited[0];
+	Namecut= split(Name1, "wv");												//cut the name before the wv
+	Truename= Namecut[0] + ")" + Supplement;	
+//merging, renaming, scale bar, and saving
+	if (NombreChannel==3) {
+		run("Merge Channels...", Firstcolor +"=[" + Orangename + "]" + Secondcolor + "=[" + Bluename + "]" + Thirdcolor + "=[" + Greenname + "] create");		//Each channel is given one of the line ==> one of the picture. 
+	}
+	if (NombreChannel==2) {
+		run("Merge Channels...", Firstcolor + "=[" + Orangename + "]" + Secondcolor + "=[" + Bluename + "] create");
+	}
+	rename(Truename);															//give the "true" name, constitued from fragment of the images (only the beginning)
+	if(YesNoScale==1){
+		run("Scale Bar...", "width=" +ScaleWidth+ " height=20 font=60 color=White background=None location=[Lower Right] bold overlay"); //put scale bar
+	}
+	//if(AutoContra==1){
+	//	run("Enhance Contrast", "saturated="+saturation);								//for automatic
+	//}
+	//if(AutoContra==0){
+	//	setMinAndMax(MinContrast, MaxContrast);												//for manual
+	//}
+	//I want an error															//used to trigger an error and check variables.
+	if(PNG==1){
+		saveAs("PNG", dirPNG+"\\"+Truename+".PNG");
+	}
+	if(BMP==1){
+		run("Stack to RGB");
+		if(YesNoScale==1){
+		run("Scale Bar...", "width=" +ScaleWidth+ " height=20 font=60 color=White background=None location=[Lower Right] bold overlay"); //put scale bar,needed for BMP for some reason
+	}
+		saveAs("BMP", dirBMP+"\\"+Truename+".BMP");
+	}
+	if(Tiff==1){
+		saveAs("Tiff", dirTiff+"\\"+Truename+".Tiff");
+	}
+	if(JPEG==1){
+		saveAs("Jpeg", dirJPEG+"\\"+Truename+".Jpeg");
+	}
+	run("Close All");
+	print("\\Clear");
+	NbImage=NbImage+1;
+	}
+
+showMessage("Program completed, "+NbImage+" merging! Have a nice day!");
+}
+exit;																			//finish the program
+
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//common functions
+function cleanStart(){
+	roiManager("reset");
+	run("Clear Results");
+	run("Close All");
+	closeNonImageWindows();
+}
+
+function closeNonImageWindows(){
+	windows=getList("window.titles");
+	for(i=0; i<windows.length; i++){
+		selectWindow(windows[i]);
+		run("Close");
+	}
+}
